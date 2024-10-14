@@ -18,7 +18,7 @@ header('Content-Type: application/json');
 
 require_once 'BookingCalendar3.php';
 
-$calendar = new BookingCalendar3();
+$calendar = new BookingCalendar();
 
 if (isset($_GET['action'])) {
     $action = $_GET['action'];
@@ -65,26 +65,21 @@ if (isset($_GET['action'])) {
             $timeslot = filter_var($data['timeslot'], FILTER_SANITIZE_STRING);
             $date = filter_var($data['date'], FILTER_SANITIZE_STRING);
 
-            // Assuming $mysqli is your database connection
-            $mysqli = new mysqli("localhost", "root", "", "autocare_lanka");
+            // Establishing a PDO connection
+            $dsn = "mysql:host=localhost;dbname=autocare_lanka;charset=utf8";
+            try {
+                $pdo = new PDO($dsn, "root", "");
+                $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-            if ($mysqli->connect_error) {
-                die("Connection failed: " . $mysqli->connect_error);
-            }
+                // Prepare and execute the SQL query using PDO
+                $query = "INSERT INTO bookings3 (name, email, phone, vehicle_model, vehicle_number, timeslot, date) VALUES (?, ?, ?, ?, ?, ?, ?)";
+                $stmt = $pdo->prepare($query);
+                $stmt->execute([$name, $email, $phone, $vehicleModel, $vehicleNumber, $timeslot, $date]);
 
-            // Prepare and execute the SQL query
-            $query = "INSERT INTO bookings3 (name, email, phone, vehicle_model, vehicle_number, timeslot, date) VALUES (?, ?, ?, ?, ?, ?, ?)";
-            $stmt = $mysqli->prepare($query);
-            $stmt->bind_param("sssssss", $name, $email, $phone, $vehicleModel, $vehicleNumber, $timeslot, $date);
-
-            if ($stmt->execute()) {
                 echo json_encode(['status' => 'success']);
-            } else {
-                echo json_encode(['status' => 'error', 'message' => 'Booking failed.']);
+            } catch (PDOException $e) {
+                echo json_encode(['status' => 'error', 'message' => 'Booking failed: ' . $e->getMessage()]);
             }
-
-            $stmt->close();
-            $mysqli->close();
             break;
 
         default:

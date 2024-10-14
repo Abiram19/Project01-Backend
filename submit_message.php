@@ -21,8 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Check if all required fields are present
         if ($firstName && $phone && $email && $messageText) {
             // Insert the message into the database
-            $message->insertMessage($firstName, $phone, $email, $messageText);
-            echo json_encode(['success' => true]);
+            $success = $message->insertMessage($firstName, $phone, $email, $messageText);
+            echo json_encode(['success' => $success]);
         } else {
             echo json_encode(['success' => false, 'message' => 'Incomplete form data.']);
         }

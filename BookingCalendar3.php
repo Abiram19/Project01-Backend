@@ -1,7 +1,7 @@
 <?php
 require_once 'DatabaseConnection.php';
 
-class BookingCalendar3 extends DatabaseConnection
+class BookingCalendar extends DatabaseConnection
 {
     public function buildCalendar($month, $year)
     {
@@ -16,19 +16,15 @@ class BookingCalendar3 extends DatabaseConnection
             $currentDate->modify('+1 day');
         }
 
-        // Verify if this query is returning the correct results
+        // Prepare the query to count booked slots
         $stmt = $this->getConnection()->prepare("SELECT date, COUNT(*) as booked_count FROM bookings3 WHERE MONTH(date) = ? AND YEAR(date) = ? GROUP BY date");
+        $stmt->execute([$month, $year]);
+        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $stmt->bind_param('ii', $month, $year);
-
-        if ($stmt->execute()) {
-            $result = $stmt->get_result();
-            while ($row = $result->fetch_assoc()) {
-                $date = $row['date'];
-                $bookedCount = $row['booked_count'];
-                $availableSlots[$date] = max(0, 9 - $bookedCount); // Subtract booked slots from total slots
-            }
-            $stmt->close();
+        foreach ($result as $row) {
+            $date = $row['date'];
+            $bookedCount = $row['booked_count'];
+            $availableSlots[$date] = max(0, 9 - $bookedCount); // Subtract booked slots from total slots
         }
 
         return [
@@ -39,41 +35,21 @@ class BookingCalendar3 extends DatabaseConnection
     public function checkSlots($date)
     {
         $stmt = $this->getConnection()->prepare("SELECT * FROM bookings3 WHERE date = ?");
-        $stmt->bind_param('s', $date);
-        $totalBookings = 0;
-
-        if ($stmt->execute()) {
-            $result = $stmt->get_result();
-            $totalBookings = $result->num_rows;
-            $stmt->close();
-        }
-
-        return $totalBookings;
+        $stmt->execute([$date]);
+        return $stmt->rowCount(); // Get total bookings
     }
 
     public function getBookings($date)
     {
         $stmt = $this->getConnection()->prepare("SELECT * FROM bookings3 WHERE date = ?");
-        $stmt->bind_param('s', $date);
-        $bookings = [];
-
-        if ($stmt->execute()) {
-            $result = $stmt->get_result();
-            while ($row = $result->fetch_assoc()) {
-                $bookings[] = $row;
-            }
-            $stmt->close();
-        }
-
-        return $bookings;
+        $stmt->execute([$date]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC); // Return all bookings
     }
 
     public function addBooking($name, $email, $phone, $vehicleModel, $vehicleNumber, $timeslot, $date)
     {
         $stmt = $this->getConnection()->prepare("INSERT INTO bookings3 (name, email, phone, vehicle_model, vehicle_number, timeslot, date) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param('sssssss', $name, $email, $phone, $vehicleModel, $vehicleNumber, $timeslot, $date);
-        $stmt->execute();
-        $stmt->close();
+        $stmt->execute([$name, $email, $phone, $vehicleModel, $vehicleNumber, $timeslot, $date]);
     }
 
     public function getTimeslotStatus($date)
@@ -88,20 +64,16 @@ class BookingCalendar3 extends DatabaseConnection
             "03:00PM-04:00PM",
             "04:00PM-05:00PM",
             "05:00PM-06:00PM"
-
         ];
 
         $status = array_fill_keys($timeslots, 'available');
 
         $stmt = $this->getConnection()->prepare("SELECT timeslot FROM bookings3 WHERE date = ?");
-        $stmt->bind_param('s', $date);
+        $stmt->execute([$date]);
+        $bookedSlots = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-        if ($stmt->execute()) {
-            $result = $stmt->get_result();
-            while ($row = $result->fetch_assoc()) {
-                $status[$row['timeslot']] = 'booked';
-            }
-            $stmt->close();
+        foreach ($bookedSlots as $timeslot) {
+            $status[$timeslot] = 'booked';
         }
 
         return $status;

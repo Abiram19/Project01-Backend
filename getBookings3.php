@@ -14,16 +14,19 @@ class Booking
     public function getBookings3()
     {
         $query = "SELECT * FROM bookings3";
-        $result = $this->connection->query($query);
 
-        $bookings = array();
-        if ($result->num_rows > 0) {
-            while ($row = $result->fetch_assoc()) {
-                $bookings[] = $row;
-            }
+        try {
+            $stmt = $this->connection->prepare($query);
+            $stmt->execute();
+
+            // Fetch all results as an associative array
+            $bookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            return $bookings;
+        } catch (PDOException $e) {
+            error_log('Error fetching bookings: ' . $e->getMessage());
+            return [];
         }
-
-        return $bookings;
     }
 }
 

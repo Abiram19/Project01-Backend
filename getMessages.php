@@ -14,20 +14,19 @@ class Messages
     public function getMessages()
     {
         $query = "SELECT * FROM messages";
-        $result = $this->connection->query($query);
 
-        if (!$result) {
-            return array("error" => $this->connection->error);
+        try {
+            $stmt = $this->connection->prepare($query);
+            $stmt->execute();
+
+            // Fetch all results as an associative array
+            $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            return $messages;
+        } catch (PDOException $e) {
+            error_log('Error fetching messages: ' . $e->getMessage());
+            return [];
         }
-
-        $messages = array();
-        if ($result->num_rows > 0) {
-            while ($row = $result->fetch_assoc()) {
-                $messages[] = $row;
-            }
-        }
-
-        return $messages;
     }
 }
 

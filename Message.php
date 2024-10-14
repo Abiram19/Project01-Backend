@@ -10,16 +10,19 @@ class Message
 
     public function insertMessage($firstName, $phone, $email, $message)
     {
-        $sql = 'INSERT INTO messages (first_name, phone, email, message) VALUES (?, ?, ?, ?)';
-        $stmt = $this->connection->prepare($sql);
+        $sql = 'INSERT INTO messages (first_name, phone, email, message) VALUES (:firstName, :phone, :email, :message)';
 
-        if ($stmt) {
-            $stmt->bind_param('ssss', $firstName, $phone, $email, $message);
-            $stmt->execute();
-            $stmt->close();
-        } else {
-            // Handle errors
-            echo json_encode(['success' => false, 'message' => 'Failed to prepare statement.']);
+        try {
+            $stmt = $this->connection->prepare($sql);
+            $stmt->bindParam(':firstName', $firstName);
+            $stmt->bindParam(':phone', $phone);
+            $stmt->bindParam(':email', $email);
+            $stmt->bindParam(':message', $message);
+
+            return $stmt->execute(); // Returns true if successful, false otherwise
+        } catch (PDOException $e) {
+            error_log('Error inserting message: ' . $e->getMessage());
+            return false;
         }
     }
 }
