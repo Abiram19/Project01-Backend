@@ -1,4 +1,5 @@
 <?php
+
 class User
 {
     private $conn;
@@ -15,19 +16,24 @@ class User
 
     public function register()
     {
-        $query = "INSERT INTO " . $this->table_name . " (username, email, password) VALUES (?, ?, ?)";
+        $query = "INSERT INTO " . $this->table_name . " (username, email, password) VALUES (:username, :email, :password)";
 
         $stmt = $this->conn->prepare($query);
         if ($stmt === false) {
             return ['error' => 'Database error: failed to prepare statement'];
         }
 
+        // Clean data
         $this->username = htmlspecialchars(strip_tags($this->username));
         $this->email = htmlspecialchars(strip_tags($this->email));
         $this->password = password_hash($this->password, PASSWORD_DEFAULT);
 
-        $stmt->bind_param("sss", $this->username, $this->email, $this->password);
+        // Bind parameters
+        $stmt->bindParam(':username', $this->username);
+        $stmt->bindParam(':email', $this->email);
+        $stmt->bindParam(':password', $this->password);
 
+        // Execute the query
         if ($stmt->execute()) {
             return ['success' => 'User registered successfully.'];
         } else {
@@ -37,21 +43,25 @@ class User
 
     public function login($rememberMe = false)
     {
-        $query = "SELECT * FROM " . $this->table_name . " WHERE username = ?";
+        session_start();
+        $query = "SELECT * FROM " . $this->table_name . " WHERE username = :username";
 
         $stmt = $this->conn->prepare($query);
         if ($stmt === false) {
             return ['error' => 'Database error: failed to prepare statement'];
         }
 
+        // Clean data
         $this->username = htmlspecialchars(strip_tags($this->username));
 
-        $stmt->bind_param("s", $this->username);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        // Bind parameter
+        $stmt->bindParam(':username', $this->username);
 
-        if ($result->num_rows == 1) {
-            $row = $result->fetch_assoc();
+        // Execute the query
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($row) {
             if (password_verify($this->password, $row['password'])) {
                 $_SESSION['username'] = $this->username;
                 $_SESSION['userrole'] = $row['userole'];

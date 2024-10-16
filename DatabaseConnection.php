@@ -15,12 +15,17 @@ class DatabaseConnection
 
     private function connect()
     {
-        $this->connection = new mysqli($this->host, $this->user, $this->password, $this->database);
+        $dsn = "mysql:host={$this->host};dbname={$this->database};charset=utf8";
 
-        if ($this->connection->connect_error) {
-            die('Connection failed: ' . $this->connection->connect_error);
-        } else {
+        try {
+            // Establish the connection using PDO
+            $this->connection = new PDO($dsn, $this->user, $this->password);
+            // Set PDO to throw exceptions for better error handling
+            $this->connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             error_log('Database connection successful');
+        } catch (PDOException $e) {
+            // Handle connection failure
+            die('Connection failed: ' . $e->getMessage());
         }
     }
 

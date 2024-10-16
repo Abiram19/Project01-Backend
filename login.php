@@ -12,14 +12,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 include_once 'DatabaseConnection.php';
 include_once 'User.php';
 
+// Initialize database connection using PDO
 $database = new DatabaseConnection();
 $db = $database->getConnection();
 $user = new User($db);
 
+// Decode the input data
 $data = json_decode(file_get_contents("php://input"), true);
 $user->username = $data['user'];
 $user->password = $data['pass'];
 $rememberMe = isset($data['rememberMe']) ? $data['rememberMe'] : false;
 
+// Call the login method
 $response = $user->login($rememberMe);
+
+if (isset($response['success'])) {
+    // Include the username and userrole in the response
+    $response['username'] = $_SESSION['username'];
+    $response['userrole'] = $_SESSION['userrole'];
+}
+
 echo json_encode($response);

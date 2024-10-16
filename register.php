@@ -20,24 +20,28 @@ if (isset($data->user) && isset($data->email) && isset($data->pass) && isset($da
     $user->email = $data->email;
     $user->password = $data->pass;
 
+    // Validate username
     if (!preg_match("/^[a-zA-Z0-9@_]{4,20}$/", $user->username)) {
         $response['error'] = 'Username must be between 4 and 20 characters and may include letters, numbers, @, and _.';
         echo json_encode($response);
         exit();
     }
 
+    // Validate email format
     if (!filter_var($user->email, FILTER_VALIDATE_EMAIL)) {
         $response['error'] = 'Invalid email format.';
         echo json_encode($response);
         exit();
     }
 
+    // Validate password
     if (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*[@!?\/\-_])[A-Za-z\d@!?\/\-_]{8,20}$/", $user->password)) {
-        $response['error'] = 'Password must contain 8 to 20 characters and it should contain at least one uppercase letter, at least one lowercase letter, and at least one special character (@,!,?,/,_,-).';
+        $response['error'] = 'Password must contain 8 to 20 characters and it should contain at least one uppercase letter, one lowercase letter, and one special character (@,!,?,/,_,-).';
         echo json_encode($response);
         exit();
     }
 
+    // Confirm password match
     if ($user->password !== $data->cpass) {
         $response['error'] = 'Passwords do not match.';
         echo json_encode($response);
@@ -46,25 +50,19 @@ if (isset($data->user) && isset($data->email) && isset($data->pass) && isset($da
 
     // Check if email already exists
     $stmt = $db->prepare("SELECT * FROM users WHERE email = ?");
-    $stmt->bind_param("s", $user->email);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result->num_rows > 0) {
+    $stmt->execute([$user->email]);
+    if ($stmt->rowCount() > 0) {
         $response['error'] = 'Email already registered.';
         echo json_encode($response);
-        $stmt->close();
         exit();
     }
 
     // Check if username already exists
     $stmt = $db->prepare("SELECT id FROM users WHERE username = ?");
-    $stmt->bind_param("s", $user->username);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result->num_rows > 0) {
+    $stmt->execute([$user->username]);
+    if ($stmt->rowCount() > 0) {
         $response['error'] = 'Username already taken.';
         echo json_encode($response);
-        $stmt->close();
         exit();
     }
 
@@ -72,8 +70,6 @@ if (isset($data->user) && isset($data->email) && isset($data->pass) && isset($da
     $result = $user->register();
     echo json_encode($result);
 
-    $stmt->close();
-    $db->close();
 } else {
     $response['error'] = 'Please fill all the fields.';
     echo json_encode($response);
