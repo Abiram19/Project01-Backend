@@ -1,4 +1,5 @@
 <?php
+
 class User
 {
     private $conn;
@@ -15,19 +16,21 @@ class User
 
     public function register()
     {
-        $query = "INSERT INTO " . $this->table_name . " (username, email, password) VALUES (?, ?, ?)";
+        $query = "INSERT INTO users (username, email, password) VALUES (:username, :email, :password)";
 
         $stmt = $this->conn->prepare($query);
         if ($stmt === false) {
             return ['error' => 'Database error: failed to prepare statement'];
         }
 
-        $this->username = htmlspecialchars(strip_tags($this->username));
-        $this->email = htmlspecialchars(strip_tags($this->email));
-        $this->password = password_hash($this->password, PASSWORD_DEFAULT);
+         $this->password = password_hash($this->password, PASSWORD_BCRYPT);
 
-        $stmt->bind_param("sss", $this->username, $this->email, $this->password);
+        // Bind parameters
+        $stmt->bindParam(':username', $this->username);
+        $stmt->bindParam(':email', $this->email);
+        $stmt->bindParam(':password', $this->password);
 
+        // Execute the query
         if ($stmt->execute()) {
             return ['success' => 'User registered successfully.'];
         } else {
@@ -35,36 +38,58 @@ class User
         }
     }
 
-    public function login($rememberMe = false)
-    {
-        $query = "SELECT * FROM " . $this->table_name . " WHERE username = ?";
-
+    public function login($rememberMe = false) {
+        // Prepare the SQL query
+        $query = "SELECT * FROM users WHERE username = :username";
         $stmt = $this->conn->prepare($query);
+    
         if ($stmt === false) {
-            return ['error' => 'Database error: failed to prepare statement'];
+            return ['success' => 0, 'error' => 'Database error: failed to prepare statement'];
         }
-
-        $this->username = htmlspecialchars(strip_tags($this->username));
-
-        $stmt->bind_param("s", $this->username);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        if ($result->num_rows == 1) {
-            $row = $result->fetch_assoc();
-            if (password_verify($this->password, $row['password'])) {
-                $_SESSION['username'] = $this->username;
-                $_SESSION['userrole'] = $row['userole'];
-                if ($rememberMe) {
-                    setcookie('username', $this->username, time() + (86400 * 30), "/");
-                    setcookie('userrole', $row['userole'], time() + (86400 * 30), "/");
-                }
-                return ['success' => 'User logged in successfully.', 'userrole' => $row['userole']];
+    
+        // Bind the username parameter
+        $stmt->bindParam(':username', $this->username);
+    
+        // Execute the query
+        if (!$stmt->execute()) {
+            return ['success' => 0, 'error' => 'Database error: failed to execute query'];
+        }
+    
+        // Check if the user exists
+        if ($stmt->rowCount() === 1) {
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+            if (!$row) {
+                return ['success' => 0, 'error' => 'Database error: failed to fetch user data'];
+            }
+            
+            // Verify password
+            if (password_verify($this->password , $row['password'])) {
+                // Successful login
+                return ['success' => 1, 'userrole' => $row['userole'], 'message' => 'User logged in successfully.'];
             } else {
-                return ['error' => 'Invalid password.'];
+                // Invalid password
+                return ['success' => 0, 'error' => 'Invalid password.'];
             }
         } else {
-            return ['error' => 'User not found.'];
+            // User not found
+            return ['success' => 0, 'error' => 'User not found.'];
         }
     }
+    
+    
+
+
+    public function userExists($username, $email) {
+        $query = "SELECT id FROM users WHERE username = :username OR email = :email LIMIT 1";
+        $stmt = $this->conn->prepare($query);
+        
+        $stmt->bindParam(':username', $username);
+        $stmt->bindParam(':email', $email);
+        
+        $stmt->execute();
+        
+        return $stmt->rowCount() > 0; // Return true if user exists
+    }
+    
 }

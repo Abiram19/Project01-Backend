@@ -12,14 +12,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 include_once 'DatabaseConnection.php';
 include_once 'User.php';
 
+// Initialize database connection
 $database = new DatabaseConnection();
 $db = $database->getConnection();
 $user = new User($db);
 
+// Decode input data
 $data = json_decode(file_get_contents("php://input"), true);
+
+if (!isset($data['user']) || !isset($data['pass'])) {
+    echo json_encode(['success' => 0, 'error' => 'Username and Password are required.']);
+    exit();
+}
+
 $user->username = $data['user'];
 $user->password = $data['pass'];
-$rememberMe = isset($data['rememberMe']) ? $data['rememberMe'] : false;
 
-$response = $user->login($rememberMe);
+// Call the login method
+$response = $user->login();
+
+// Return the response as JSON
 echo json_encode($response);
