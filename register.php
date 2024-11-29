@@ -1,80 +1,82 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header("Content-Type: application/json; charset=UTF-8");
+session_start();
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
-include 'DatabaseConnection.php';
-include 'User.php';
+// Handle preflight requests for CORS
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    exit(0);
+}
 
-$response = array();
-$data = json_decode(file_get_contents("php://input"));
+include_once 'DatabaseConnection.php';
+include_once 'User.php';
 
-if (isset($data->user) && isset($data->email) && isset($data->pass) && isset($data->cpass)) {
+// Initialize database connection using PDO
+$database = new DatabaseConnection();
+$db = $database->getConnection();
+$user = new User($db);
 
-    $database = new DatabaseConnection();
-    $db = $database->getConnection();
+// Decode the input data from the request body
+$data = json_decode(file_get_contents("php://input"), true);
 
-    $user = new User($db);
-    $user->username = $data->user;
-    $user->email = $data->email;
-    $user->password = $data->pass;
+// Validate input data
+if (!isset($data['user']) || !isset($data['email']) || !isset($data['pass']) || !isset($data['cpass'])) {
+    echo json_encode(["error" => "Invalid input data. All fields are required."]);
+    exit;
+}
 
-    if (!preg_match("/^[a-zA-Z0-9@_]{4,20}$/", $user->username)) {
-        $response['error'] = 'Username must be between 4 and 20 characters and may include letters, numbers, @, and _.';
-        echo json_encode($response);
-        exit();
-    }
+// Extract input data without sanitizing
+$username = $data['user'];
+$email = $data['email'];
+$password = $data['pass'];
+$confirmPassword = $data['cpass'];
 
-    if (!filter_var($user->email, FILTER_VALIDATE_EMAIL)) {
-        $response['error'] = 'Invalid email format.';
-        echo json_encode($response);
-        exit();
-    }
+// Validation regex patterns
+$usernameRegex = "/^[a-zA-Z0-9@_]{4,20}$/";
+$emailRegex = "/^[^\s@]+@[^\s@]+\.[^\s@]+$/";
+$passwordRegex = "/^(?=.*[a-z])(?=.*[A-Z])(?=.*[@!?\/\-_])[A-Za-z\d@!?\/\-_]{8,20}$/";
 
-    if (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*[@!?\/\-_])[A-Za-z\d@!?\/\-_]{8,20}$/", $user->password)) {
-        $response['error'] = 'Password must contain 8 to 20 characters and it should contain at least one uppercase letter, at least one lowercase letter, and at least one special character (@,!,?,/,_,-).';
-        echo json_encode($response);
-        exit();
-    }
 
-    if ($user->password !== $data->cpass) {
-        $response['error'] = 'Passwords do not match.';
-        echo json_encode($response);
-        exit();
-    }
+// Validate username
+if (!preg_match($usernameRegex, $username)) {
+    echo json_encode(["error" => "Username must be between 4 and 20 characters and may include letters, numbers, @, and _."]);
+    exit;
+}
 
-    // Check if email already exists
-    $stmt = $db->prepare("SELECT * FROM users WHERE email = ?");
-    $stmt->bind_param("s", $user->email);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result->num_rows > 0) {
-        $response['error'] = 'Email already registered.';
-        echo json_encode($response);
-        $stmt->close();
-        exit();
-    }
+// Validate email
+if (!preg_match($emailRegex, $email)) {
+    echo json_encode(["error" => "Please enter a valid email address."]);
+    exit;
+}
 
-    // Check if username already exists
-    $stmt = $db->prepare("SELECT id FROM users WHERE username = ?");
-    $stmt->bind_param("s", $user->username);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result->num_rows > 0) {
-        $response['error'] = 'Username already taken.';
-        echo json_encode($response);
-        $stmt->close();
-        exit();
-    }
+// Check if the username or email already exists
+if ($user->userExists($username, $email)) {
+    echo json_encode(["error" => "User already exists."]);
+    exit;
+}
 
-    // Register the user
-    $result = $user->register();
-    echo json_encode($result);
+// Validate password
+if (!preg_match($passwordRegex, $password)) {
+    echo json_encode(["error" => "Password must be 8-20 characters long and include at least one uppercase letter, one lowercase letter, and one special character (@,!,?,/,_,-)."]);
+    exit;
+}
 
-    $stmt->close();
-    $db->close();
+// Check if passwords match
+if ($password !== $confirmPassword) {
+    echo json_encode(["error" => "Passwords do not match."]);
+    exit;
+}
+
+// Set user properties
+$user->username = $username;
+$user->email = $email;
+$user->password = $password;//password_hash($password, PASSWORD_BCRYPT); // Hashing password for security
+
+// Call the register method to save the user in the database
+if ($user->register()) {
+    echo json_encode(["message" => "Registration successful."]);
 } else {
-    $response['error'] = 'Please fill all the fields.';
-    echo json_encode($response);
+    echo json_encode(["error" => "Registration failed. Please try again later."]);
 }
